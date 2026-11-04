@@ -1,0 +1,26 @@
+spring:
+  application:
+    name: rate-limiter-service
+  jpa:
+    hibernate:
+      ddl-auto: update
+    properties:
+      hibernate:
+        dialect: org.hibernate.community.dialect.SQLiteDialect
+  cloud:
+    gateway:
+      server:
+        webflux:
+          routes:
+            - id: posts-service
+              uri: http://localhost:8081
+              predicates:
+                - Path=/posts/{userId}
+                - Method=GET,POST
+              filters:
+                - name: RequestRateLimiter
+                  args:
+                    key-resolver: "#{@clientKeyResolver}"
+                    redis-rate-limiter.replenishRate: 1
+                    redis-rate-limiter.burstCapacity: 10
+                    redis-rate-limiter.requestedTokens: 1

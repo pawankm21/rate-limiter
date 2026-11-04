@@ -1,10 +1,16 @@
-# Rate limiter Service
-This project is a Spring Boot application that implements a rate limiter service using Redis as the backend store
+# Rate Limiter Service
+
+This project explores two ways to enforce rate limits in a Spring-based API gateway:
+
+1. A custom rate limiter, with implementations of algorithms such as fixed-window and token-bucket.
+2. Spring Cloud Gateway's built-in `RedisRateLimiter`, which uses Redis to share rate-limit state across gateway instances.
+
+The goal is to implement and compare both approaches. They are separate strategies; a route should normally use one limiter at a time unless applying both is intentional.
 
 
 
 # Problem Statement
-1. The rate limiter service is designed to limit the number of requests a client can make to an API within a specified time window.
+1. The gateway limits the number of requests a client can make to downstream APIs.
 2. Assume auth is handled.
 3. The service is implemented for a high volume public API.
 ## Functional Requirements
@@ -14,7 +20,19 @@ This project is a Spring Boot application that implements a rate limiter service
 4. The service policy should be configurable, allowing for different limits and time windows for different clients.
     - The service should support multiple rate limit policies, allowing for different limits and time windows for different clients.
     - Simple based on the client type - premium, standard, free tiers.
-6. The service should provide an endpoint to check the current rate limit status for a client.
+5. The gateway should reject requests that exceed the configured limit with HTTP 429.
+
+## Rate-Limiting Approaches
+
+### Custom rate limiter
+
+Implement rate-limiting algorithms behind a common interface so their behavior can be tested and compared. The custom implementation is responsible for calculating whether a request is allowed and maintaining its counter or bucket state. An in-memory implementation is useful for learning and local tests, but it does not share state across gateway instances; use a shared store such as Redis for a distributed deployment.
+
+### Spring Cloud Gateway `RedisRateLimiter`
+
+Configure Gateway's built-in Redis-backed rate limiter on routes. Gateway applies the limit in its request filter pipeline, while Redis stores shared rate-limit state. A `KeyResolver` determines which requests share a limit, ideally using a trusted authenticated client identity. This is the distributed option for multiple gateway instances.
+
+These approaches can be selected per route for comparison. Avoid stacking both on the same route unless two independent layers of limiting are desired and their combined behavior is understood.
 
 ## Non-Functional Requirements
 1. Availability = 99.9%: The service should be highly available and able to handle a large number of concurrent requests.
