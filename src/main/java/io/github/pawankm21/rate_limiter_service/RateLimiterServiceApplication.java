@@ -1,15 +1,13 @@
 package io.github.pawankm21.rate_limiter_service;
 
 import org.springframework.boot.SpringApplication;
-import org.springframework.boot.SpringBootConfiguration;
-import org.springframework.boot.autoconfigure.EnableAutoConfiguration;
+import org.springframework.boot.autoconfigure.SpringBootApplication;
 
 
 /**
  * @author Spencer Gibb
  */
-@SpringBootConfiguration
-@EnableAutoConfiguration
+@SpringBootApplication
 public class RateLimiterServiceApplication {
 
 

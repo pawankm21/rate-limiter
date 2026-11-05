@@ -34,6 +34,34 @@ Configure Gateway's built-in Redis-backed rate limiter on routes. Gateway applie
 
 These approaches can be selected per route for comparison. Avoid stacking both on the same route unless two independent layers of limiting are desired and their combined behavior is understood.
 
+## Run the Redis Gateway Simulation
+
+The configured `posts-service` route uses Spring Cloud Gateway's `RedisRateLimiter` with a refill rate of one token per second and a bucket capacity of ten. For local simulation, the `clientKeyResolver` reads `X-Client-Id`; this header is caller-controlled and must not be used as an identity source in production. Replace it with the authenticated principal or a trusted JWT claim when authentication is configured.
+
+1. Start Redis and the mock downstream posts service:
+
+   ```sh
+   docker compose up -d
+   ```
+
+2. Start the gateway in another terminal:
+
+   ```sh
+   ./gradlew bootRun
+   ```
+
+3. Send 12 requests with the same client key:
+
+   ```sh
+   for i in $(seq 1 12); do
+     curl -s -o /dev/null -w "%{http_code}\n" \
+       -H "X-Client-Id: demo-client" \
+       http://localhost:8080/posts/42
+   done
+   ```
+
+   The first ten requests should be forwarded and return `200`; requests after the bucket is empty should return `429` until tokens refill. Use a different `X-Client-Id` to test an independent bucket. Stop the local containers with `docker compose down`.
+
 ## Non-Functional Requirements
 1. Availability = 99.9%: The service should be highly available and able to handle a large number of concurrent requests.
 2. The service should be able to handle DDOS attacks and other malicious activities.
