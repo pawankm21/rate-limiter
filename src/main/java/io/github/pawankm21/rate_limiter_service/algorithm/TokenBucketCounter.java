@@ -40,7 +40,7 @@ public class TokenBucketCounter implements RateLimitAlgorithm {
                     return new BucketState(new Date(currentTimeMillis), 0.0);
                 }
             }
-
+            // to counter -ve elapsedTime
             long elapsedMillis = Math.max(0L, currentTimeMillis - prevState.getEpochMillis());
             double refilledTokens = Math.min(
                     capacity,

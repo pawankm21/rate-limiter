@@ -1,18 +1,4 @@
 spring:
-  application:
-    name: rate-limiter-service
-  data:
-    redis:
-      host: localhost
-      port: 6379
-  datasource:
-    url: jdbc:sqlite:./rate-limiter.db
-  jpa:
-    hibernate:
-      ddl-auto: update
-    properties:
-      hibernate:
-        dialect: org.hibernate.community.dialect.SQLiteDialect
   cloud:
     gateway:
       server:
@@ -24,10 +10,39 @@ spring:
                 - Path=/posts/{userId}
                 - Method=GET,POST
               filters:
+                # ------------------------------------------------------------------
+                # Option A (commented out): Spring Cloud Gateway's built-in Redis limiter.
+                # State lives in Redis, so it is shared across gateway instances.
+                # To use: set rate-limiter.algorithm=redis and ensure numericClientKeyResolver is the key-resolver.
+                # ------------------------------------------------------------------
+                # - name: RequestRateLimiter
+                #                  args:
+                #                    key-resolver: "#{@clientKeyResolver}"
+                #                    redis-rate-limiter:
+                #                      replenishRate: 1
+                #                      burstCapacity: 10
+                #                      requestedTokens: 1
+
+                # ------------------------------------------------------------------
+                # Option B (active): Custom rate limiter with configured algorithm.
+                # Uses the custom TokenBucketCounter adapter (Redis, In-Memory, or Redisson).
+                # key-resolver must produce a numeric client id (use @numericClientKeyResolver).
+                # Configure rate-limiter.algorithm: in-memory | redis | redisson
+                # ------------------------------------------------------------------
                 - name: RequestRateLimiter
                   args:
-                    key-resolver: "#{@clientKeyResolver}"
-                    redis-rate-limiter:
-                      replenishRate: 1
-                      burstCapacity: 10
+                    key-resolver: "#{@numericClientKeyResolver}"
+                    custom-rate-limiter:
                       requestedTokens: 1
+
+                # ------------------------------------------------------------------
+                # Option C (alternative): Spring Cloud Gateway's built-in RedisRateLimiter.
+                # Uncomment below and comment out Option B, and set rate-limiter.algorithm=redis.
+                # ------------------------------------------------------------------
+#                - name: RequestRateLimiter
+#                  args:
+#                    key-resolver: "#{@clientKeyResolver}"
+#                    redis-rate-limiter:
+#                      replenishRate: 1
+#                      burstCapacity: 10
+#                      requestedTokens: 1

@@ -28,6 +28,77 @@ The goal is to implement and compare both approaches. They are separate strategi
 
 Implement rate-limiting algorithms behind a common interface so their behavior can be tested and compared. The custom implementation is responsible for calculating whether a request is allowed and maintaining its counter or bucket state. An in-memory implementation is useful for learning and local tests, but it does not share state across gateway instances; use a shared store such as Redis for a distributed deployment.
 
+### Distributed Token Bucket with Redis
+
+If you need to use the custom `TokenBucketCounter` algorithm in a distributed environment (multiple gateway instances), you must replace the in-memory `ConcurrentHashMap` with Redis-backed storage. Here's what changes are required:
+
+#### Changes Needed:
+
+1. **Replace `ConcurrentHashMap` with Redis Hashes** - Store bucket state per client key in Redis instead of memory
+
+2. **Use Lua Scripts for Atomic Operations** - Redis doesn't have atomic `compute-if-absent`; a Lua script handles the entire token bucket logic atomically (refill, check, decrement)
+
+3. **BucketState Serialization** - Store as Redis Hash fields:
+   - `tokens` - current token count
+   - `epoch_millis` - last refill timestamp
+
+4. **Lua Script Example** (atomic token bucket operation):
+
+   ```lua
+   local key = KEYS[1]
+   local now = tonumber(ARGV[1])
+   local capacity = tonumber(ARGV[2])
+   local refill_rate = tonumber(ARGV[3])
+   local requested = tonumber(ARGV[4])
+
+   local state = redis.call('HGETALL', key)
+   local tokens = 0
+   local epoch_millis = now
+
+   if #state > 0 then
+       tokens = tonumber(state[2])
+       epoch_millis = tonumber(state[4])
+   end
+
+   local elapsed = math.max(0, now - epoch_millis)
+   local refilled = math.min(capacity, tokens + elapsed * refill_rate)
+
+   local allowed = 0
+   if refilled >= requested then
+       refilled = refilled - requested
+       allowed = 1
+   end
+
+   redis.call('HSET', key, 'tokens', refilled, 'epoch_millis', now)
+
+   return {allowed, refilled, now}
+   ```
+
+5. **Update `TokenBucketCounter`** to use `StringRedisTemplate` and the Lua script
+
+#### Alternative: Use Redisson
+
+Redisson provides distributed data structures that handle Redis complexity:
+
+```java
+RBucket<BucketState> bucket = redisson.getBucket("client:" + clientId);
+boolean allowed = bucket.execute((BucketState state) -> {
+    // atomic update logic
+})
+```
+
+#### Redis Configuration
+
+Ensure `application.yml` has Redis configured:
+
+```yaml
+spring:
+  data:
+    redis:
+      host: localhost
+      port: 6379
+```
+
 ### Spring Cloud Gateway `RedisRateLimiter`
 
 Configure Gateway's built-in Redis-backed rate limiter on routes. Gateway applies the limit in its request filter pipeline, while Redis stores shared rate-limit state. A `KeyResolver` determines which requests share a limit, ideally using a trusted authenticated client identity. This is the distributed option for multiple gateway instances.
